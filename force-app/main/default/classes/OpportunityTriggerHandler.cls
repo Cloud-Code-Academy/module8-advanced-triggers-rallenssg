@@ -1,38 +1,29 @@
 public with sharing class OpportunityTriggerHandler extends TriggerHandler {
     public override void beforeInsert() {
-        for (Opportunity opp : Trigger.new) {
-            if (opp.Type == null){
-                opp.Type = 'New Customer';
-            }
-        }
+        OpportunityHelper.setDefaultType((List<Opportunity>) Trigger.new);
     }
 
     public override void beforeDelete() {
-        for (Opportunity oldOpp : Trigger.old) {
-            if (oldOpp.IsClosed) {
-                oldOpp.addError('Cannot delete closed opportunity');
-            }
-        }
+       OpportunityHelper.preventDeleteOnClosedOpps((List<Opportunity>) Trigger.old);
     }
 
     public override void afterInsert() {
-        List<Task> tasks = new List<Task>();
-        for (Opportunity opp : Trigger.new) {
-            tasks.add(
-                new Task(
-                    Subject = 'Call Primary Contact',
-                    WhatId = opp.Id,
-                    WhoId = opp.Primary_Contact__c,
-                    OwnerId = opp.OwnerId,
-                    ActivityDate = Date.today().addDays(3)
-                )
-            );
-        }
-
-        insert tasks;
+        OpportunityHelper.createFollowUpTasks((List<Opportunity>) Trigger.new);
     }
 
-    public override void afterUpdate() {
-        
+    public override void beforeUpdate() {
+        OpportunityHelper.assignPrimaryContactFromCEO((List<Opportunity>) Trigger.new);
+        OpportunityHelper.validateAmountAndAppendStageHistory(
+            (List<Opportunity>) Trigger.new,
+            (Map<Id, Opportunity>) Trigger.oldMap
+        );
+    }
+
+    public override void afterDelete() {
+        OpportunityHelper.notifyOwnersOpportunityDeleted((List<Opportunity>) Trigger.old);
+    }
+
+    public override void afterUndelete() {
+        OpportunityHelper.assignPrimaryContactAfterUndelete((List<Opportunity>) Trigger.new);
     }
 }
